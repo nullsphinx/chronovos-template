@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>chronovos</title>
+  <style>
+    /* Basic resets */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f5f5f5;
+    }
+
+    /* NAVBAR */
+    .navbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background-color: #2f2f2f;
+      color: #fff;
+      padding: 8px 16px;
+    }
+
+    .navbar-left {
+      display: flex;
+      align-items: center;
+    }
+
+    .hamburger {
+      cursor: pointer;
+      font-size: 22px;
+      margin-right: 16px;
+      user-select: none;
+    }
+
+    .navbar-brand {
+      color: #fff;
+      font-weight: bold;
+      text-decoration: none;
+      font-size: 18px;
+    }
+
+    .navbar-right a {
+      color: #fff;
+      text-decoration: none;
+      margin-left: 16px;
+    }
+
+    .navbar-right a:hover {
+      text-decoration: underline;
+    }
+
+    /* MAIN APP LAYOUT */
+    .app-container {
+      display: flex;
+      flex-direction: row;
+      height: calc(100vh - 48px);
+      /* Subtract navbar height */
+      overflow: hidden;
+    }
+
+    /* LEFT SIDEBAR (Tags) */
+    .sidebar {
+      width: 200px;
+      background-color: #fff;
+      border-right: 1px solid #eee;
+      overflow-y: auto;
+      padding: 16px;
+      transition: width 0.3s ease;
+    }
+
+    .sidebar.collapsed {
+      width: 60px;
+    }
+
+    .sidebar.collapsed .sidebar-header,
+    .sidebar.collapsed .tree-view {
+      display: none;
+    }
+
+    .sidebar-header {
+      font-size: 16px;
+      font-weight: bold;
+      margin-bottom: 12px;
+      color: #333;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #eee;
+    }
+
+    /* RIGHT SIDEBAR (Minimap) */
+    .minimap-sidebar {
+      width: 130px;
+      background-color: #fff;
+      border-left: 1px solid #eee;
+      /* Remove horizontal padding so content uses full width */
+      padding: 16px 0;
+      overflow: hidden;
+      transition: width 0.3s ease;
+    }
+
+    .minimap-sidebar.collapsed {
+      width: 60px;
+    }
+
+    /* Minimap content: center the mini grid without scroll */
+    .minimap-content {
+      display: flex;
+      justify-content: center;
+      /* center horizontally */
+      align-items: flex-start;
+      /* align at top */
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    /* Cloned table wrapper (scaled) with centered alignment */
+    .mini-grid-wrapper {
+      display: block;
+      margin: 0;
+      transform: scale(0.3);
+      transform-origin: top center;
+    }
+
+    /* RESIZER (for both sides) */
+    .resizer {
+      width: 5px;
+      cursor: col-resize;
+      background-color: #ccc;
+      user-select: none;
+    }
+
+    /* TIMELINE CONTAINER (Center) */
+    .timeline-container {
+      flex: 1;
+      overflow-y: auto;
+      background-color: #fff;
+      padding: 16px;
+      transition: width 0.3s ease;
+    }
+
+    .timeline-header {
+      font-size: 16px;
+      font-weight: bold;
+      margin-bottom: 12px;
+      color: #333;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 8px;
+    }
+
+    .timeline-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    col.year-col {
+      width: 80px;
+      white-space: nowrap;
+    }
+
+    col.region-col {
+      /* The four region columns share the remaining space equally */
+    }
+
+    .timeline-table th,
+    .timeline-table td {
+      border: 1px solid #ccc;
+      padding: 6px;
+      vertical-align: top;
+    }
+
+    .timeline-table thead th {
+      background-color: #f9f9f9;
+      border-bottom: 2px solid #ddd;
+      text-align: center;
+    }
+
+    .timeline-table td.region-col {
+      text-align: center;
+    }
+
+    /* TREE-VIEW (Tag Hierarchy) */
+    .tree-view {
+      list-style-type: none;
+      padding-left: 0;
+      margin: 0;
+    }
+
+    .tree-view ul {
+      list-style-type: none;
+      padding-left: 20px;
+      margin: 4px 0;
+    }
+
+    .tree-item {
+      margin: 4px 0;
+    }
+
+    .toggle-container {
+      display: flex;
+      align-items: flex-start;
+      cursor: pointer;
+    }
+
+    .toggle {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      text-align: center;
+      line-height: 12px;
+      margin-right: 6px;
+      color: #555;
+      font-size: 12px;
+      user-select: none;
+      vertical-align: middle;
+    }
+
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      padding: 2px 0;
+    }
+
+    .checkbox-label:hover {
+      background-color: #f0f0f0;
+    }
+
+    .checkbox-label input {
+      margin-right: 6px;
+    }
+
+    .category-name {
+      font-weight: bold;
+      color: #333;
+    }
+
+    .subcategory-name {
+      color: #555;
+    }
+
+    .tag-name {
+      color: #777;
+      font-size: 13px;
+    }
+
+    .nested {
+      display: block;
+    }
+  </style>
+
+</head>
+
+<body>
+  <!-- NAVBAR -->
+  <div class="navbar">
+    <div class="navbar-left">
+      <!-- Hamburger icon to toggle left sidebar collapse -->
+      <div class="hamburger" id="sidebarToggle">&#9776;</div>
+      <a href="/" class="navbar-brand">chronovos</a>
+    </div>
+    <div class="navbar-right">
+      <a href="#">About</a>
+      <a href="#">Documentation</a>
+      <a href="#">Roadmap</a>
+    </div>
+  </div>
+
+  <!-- MAIN APP CONTAINER -->
+  <div class="app-container">
+    <!-- SIDEBAR: TAG HIERARCHY -->
+    <div class="sidebar" id="sidebar">
+      <div class="sidebar-header">Filter by Tags</div>
+      <ul class="tree-view">
+
+        <!-- Cultural Category -->
+        <li class="tree-item">
+          <div class="toggle-container">
+            <span class="toggle">▼</span>
+            <label class="checkbox-label">
+              <input type="checkbox" class="category-checkbox">
+              <span class="category-name">Cultural</span>
+            </label>
+          </div>
+          <ul class="nested">
+            <!-- Arts & Expression -->
+            <li class="tree-item">
+              <div class="toggle-container">
+                <span class="toggle">▼</span>
+                <label class="checkbox-label">
+                  <input type="checkbox" class="subcategory-checkbox">
+                  <span class="subcategory-name">Arts & Expression</span>
+                </label>
+              </div>
+              <ul class="nested">
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Visual Art</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Literature</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Music</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Architecture</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Performance</span></label></li>
+              </ul>
+            </li>
+
+            <!-- Daily Life -->
+            <li class="tree-item">
+              <div class="toggle-container">
+                <span class="toggle">▼</span>
+                <label class="checkbox-label">
+                  <input type="checkbox" class="subcategory-checkbox">
+                  <span class="subcategory-name">Daily Life</span>
+                </label>
+              </div>
+              <ul class="nested">
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Customs</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Fashion</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Food</span></label></li>
+              </ul>
+            </li>
+
+            <!-- Belief Systems -->
+            <li class="tree-item">
+              <div class="toggle-container">
+                <span class="toggle">▼</span>
+                <label class="checkbox-label">
+                  <input type="checkbox" class="subcategory-checkbox"><span class="subcategory-name">Belief Systems</span>
+                </label>
+              </div>
+              <ul class="nested">
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Religion</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Philosophy</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Mythology</span></label></li>
+              </ul>
+            </li>
+
+            <!-- Person Roles -->
+            <li class="tree-item">
+              <div class="toggle-container">
+                <span class="toggle">▼</span>
+                <label class="checkbox-label">
+                  <input type="checkbox" class="subcategory-checkbox">
+                  <span class="subcategory-name">People</span>
+                </label>
+              </div>
+              <ul class="nested">
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Artist</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Writer</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Musician</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Philosopher</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Religious Leader</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Cultural Figure</span></label></li>
+              </ul>
+            </li>
+          </ul>
+        </li>
+
+        <!-- Economic Category -->
+        <li class="tree-item">
+          <div class="toggle-container">
+            <span class="toggle">▼</span>
+            <label class="checkbox-label">
+              <input type="checkbox" class="category-checkbox">
+              <span class="category-name">Economic</span>
+            </label>
+          </div>
+          <ul class="nested">
+            <!-- Economic Theories & Systems -->
+            <li class="tree-item">
+              <div class="toggle-container">
+                <span class="toggle">▼</span>
+                <label class="checkbox-label">
+                  <input type="checkbox" class="subcategory-checkbox">
+                  <span class="subcategory-name">Economic Theories & Systems</span>
+                </label>
+              </div>
+              <ul class="nested">
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Economic Theory</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Banking</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Currency</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Market Systems</span></label></li>
+              </ul>
+            </li>
+
+            <!-- Industrial Developments -->
+            <li class="tree-item">
+              <div class="toggle-container">
+                <span class="toggle">▼</span>
+                <label class="checkbox-label">
+                  <input type="checkbox" class="subcategory-checkbox">
+                  <span class="subcategory-name">Industrial Developments</span>
+                </label>
+              </div>
+              <ul class="nested">
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Manufacturing</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Mining</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Construction</span></label></li>
+              </ul>
+            </li>
+
+            <!-- Trade & Commerce -->
+            <li class="tree-item">
+              <div class="toggle-container">
+                <span class="toggle">▼</span>
+                <label class="checkbox-label">
+                  <input type="checkbox" class="subcategory-checkbox">
+                  <span class="subcategory-name">Trade & Commerce</span>
+                </label>
+              </div>
+              <ul class="nested">
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Trade Routes</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Maritime Trade</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Markets</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Commercial Laws</span></label></li>
+              </ul>
+            </li>
+
+            <!-- Person Roles -->
+            <li class="tree-item">
+              <div class="toggle-container">
+                <span class="toggle">▼</span>
+                <label class="checkbox-label">
+                  <input type="checkbox" class="subcategory-checkbox">
+                  <span class="subcategory-name">People</span>
+                </label>
+              </div>
+              <ul class="nested">
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Merchant</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Economist</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Industrialist</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Trade Leader</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Financial Innovator</span></label></li>
+              </ul>
+            </li>
+          </ul>
+        </li>
+
+        <!-- Environmental Category -->
+        <li class="tree-item">
+          <div class="toggle-container">
+            <span class="toggle">▼</span>
+            <label class="checkbox-label">
+              <input type="checkbox" class="category-checkbox">
+              <span class="category-name">Environmental</span>
+            </label>
+          </div>
+          <ul class="nested">
+            <!-- Climate & Geography -->
+            <li class="tree-item">
+              <div class="toggle-container">
+                <span class="toggle">▼</span>
+                <label class="checkbox-label">
+                  <input type="checkbox" class="subcategory-checkbox">
+                  <span class="subcategory-name">Climate & Geography</span>
+                </label>
+              </div>
+              <ul class="nested">
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Natural Features</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Climate Events</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Weather Patterns</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Geographical Discovery</span></label></li>
+              </ul>
+            </li>
+
+            <!-- Human Impact -->
+            <li class="tree-item">
+              <div class="toggle-container">
+                <span class="toggle">▼</span>
+                <label class="checkbox-label">
+                  <input type="checkbox" class="subcategory-checkbox">
+                  <span class="subcategory-name">Human Impact</span>
+                </label>
+              </div>
+              <ul class="nested">
+                <li><label class="checkbox-label"><input type="checkbox"><span
+                      class="tag-name">Agriculture</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Urban Development</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Resource Extraction</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Environmental Change</span></label></li>
+              </ul>
+            </li>
+
+            <!-- Natural Events -->
+            <li class="tree-item">
+              <div class="toggle-container">
+                <span class="toggle">▼</span>
+                <label class="checkbox-label">
+                  <input type="checkbox" class="subcategory-checkbox">
+                  <span class="subcategory-name">Natural Events</span>
+                </label>
+              </div>
+              <ul class="nested">
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Natural Disasters</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Geological Events</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Astronomical Events</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Climate Change</span></label></li>
+              </ul>
+            </li>
+          </ul>
+        </li>
+
+        <!-- Political Category -->
+        <li class="tree-item">
+          <div class="toggle-container">
+            <span class="toggle">▼</span>
+            <label class="checkbox-label">
+              <input type="checkbox" class="category-checkbox">
+              <span class="category-name">Political</span>
+            </label>
+          </div>
+          <ul class="nested">
+            <!-- Governance -->
+            <li class="tree-item">
+              <div class="toggle-container">
+                <span class="toggle">▼</span>
+                <label class="checkbox-label">
+                  <input type="checkbox" class="subcategory-checkbox">
+                  <span class="subcategory-name">Governance</span>
+                </label>
+              </div>
+              <ul class="nested">
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Empires</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Kingdoms</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">City-States</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Republics</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Political Systems</span></label></li>
+              </ul>
+            </li>
+
+            <!-- Diplomacy -->
+            <li class="tree-item">
+              <div class="toggle-container">
+                <span class="toggle">▼</span>
+                <label class="checkbox-label">
+                  <input type="checkbox" class="subcategory-checkbox">
+                  <span class="subcategory-name">Diplomacy</span>
+                </label>
+              </div>
+              <ul class="nested">
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Treaties</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Alliances</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Diplomatic Relations</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Peace Agreements</span></label></li>
+              </ul>
+            </li>
+
+            <!-- Conflict -->
+            <li class="tree-item">
+              <div class="toggle-container">
+                <span class="toggle">▼</span>
+                <label class="checkbox-label">
+                  <input type="checkbox" class="subcategory-checkbox">
+                  <span class="subcategory-name">Conflict</span>
+                </label>
+              </div>
+              <ul class="nested">
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Wars</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Battles</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Civil Conflicts</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Revolutions</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Military Campaigns</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Coup Detats</span></label></li>
+              </ul>
+            </li>
+
+            <!-- Law & Administration -->
+            <li class="tree-item">
+              <div class="toggle-container">
+                <span class="toggle">▼</span>
+                <label class="checkbox-label">
+                  <input type="checkbox" class="subcategory-checkbox">
+                  <span class="subcategory-name">Law & Administration</span>
+                </label>
+              </div>
+              <ul class="nested">
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Legal Systems</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Administrative Systems</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Government Reforms</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Political Movements</span></label></li>
+              </ul>
+            </li>
+
+            <!-- Person Roles -->
+            <li class="tree-item">
+              <div class="toggle-container">
+                <span class="toggle">▼</span>
+                <label class="checkbox-label">
+                  <input type="checkbox" class="subcategory-checkbox">
+                  <span class="subcategory-name">People</span>
+                </label>
+              </div>
+              <ul class="nested">
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Emperor</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">King/Queen</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Political Leader</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Diplomat</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">MilitaryLeader</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Revolutionary</span></label></li>
+              </ul>
+            </li>
+          </ul>
+        </li>
+
+        <!-- Scientific Category -->
+        <li class="tree-item">
+          <div class="toggle-container">
+            <span class="toggle">▼</span>
+            <label class="checkbox-label">
+              <input type="checkbox" class="category-checkbox">
+              <span class="category-name">Scientific</span>
+            </label>
+          </div>
+          <ul class="nested">
+            <!-- Mathematics -->
+            <li class="tree-item">
+              <div class="toggle-container">
+                <span class="toggle">▼</span>
+                <label class="checkbox-label">
+                  <input type="checkbox" class="subcategory-checkbox">
+                  <span class="subcategory-name">Mathematics</span>
+                </label>
+              </div>
+              <ul class="nested">
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Mathematical Theory</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Geometry</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Algebra</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Mathematical Tools</span></label></li>
+              </ul>
+            </li>
+
+            <!-- Natural Sciences -->
+            <li class="tree-item">
+              <div class="toggle-container">
+                <span class="toggle">▼</span>
+                <label class="checkbox-label">
+                  <input type="checkbox" class="subcategory-checkbox">
+                  <span class="subcategory-name">Natural Sciences</span>
+                </label>
+              </div>
+              <ul class="nested">
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Physics</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Chemistry</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Biology</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Astronomy</span></label></li>
+              </ul>
+            </li>
+
+            <!-- Technology -->
+            <li class="tree-item">
+              <div class="toggle-container">
+                <span class="toggle">▼</span>
+                <label class="checkbox-label">
+                  <input type="checkbox" class="subcategory-checkbox">
+                  <span class="subcategory-name">Technology</span>
+                </label>
+              </div>
+              <ul class="nested">
+                <li><label class="checkbox-label"><input type="checkbox"><span lass="tag-name">Inventions</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Tools</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Machines</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Engineering</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Technical Innovations</span></label></li>
+              </ul>
+            </li>
+
+            <!-- Medicine -->
+            <li class="tree-item">
+              <div class="toggle-container">
+                <span class="toggle">▼</span>
+                <label class="checkbox-label">
+                  <input type="checkbox" class="subcategory-checkbox">
+                  <span class="subcategory-name">Medicine</span>
+                </label>
+              </div>
+              <ul class="nested">
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Medical Discoveries</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Medical Practices</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Diseases</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Public Health</span></label></li>
+              </ul>
+            </li>
+
+            <!-- Scientific Movements -->
+            <li class="tree-item">
+              <div class="toggle-container">
+                <span class="toggle">▼</span>
+                <label class="checkbox-label">
+                  <input type="checkbox" class="subcategory-checkbox">
+                  <span class="subcategory-name">Scientific Movements</span>
+                </label>
+              </div>
+              <ul class="nested">
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Renaissance Science</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Enlightenment</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Scientific Revolution</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Digital Revolution</span></label></li>
+              </ul>
+            </li>
+
+            <!-- Person Roles -->
+            <li class="tree-item">
+              <div class="toggle-container">
+                <span class="toggle">▼</span>
+                <label class="checkbox-label">
+                  <input type="checkbox" class="subcategory-checkbox">
+                  <span class="subcategory-name">People</span>
+                </label>
+              </div>
+              <ul class="nested">
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Scientist</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Mathematician</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Inventor</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Engineer</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Physician</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Astronomer</span></label></li>
+              </ul>
+            </li>
+          </ul>
+        </li>
+
+        <!-- Social Category -->
+        <li class="tree-item">
+          <div class="toggle-container">
+            <span class="toggle">▼</span>
+            <label class="checkbox-label">
+              <input type="checkbox" class="category-checkbox">
+              <span class="category-name">Social</span>
+            </label>
+          </div>
+          <ul class="nested">
+            <!-- Social Structure -->
+            <li class="tree-item">
+              <div class="toggle-container">
+                <span class="toggle">▼</span>
+                <label class="checkbox-label">
+                  <input type="checkbox" class="subcategory-checkbox">
+                  <span class="subcategory-name">Social Structure</span>
+                </label>
+              </div>
+              <ul class="nested">
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Class Systems</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Social Hierarchy</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Family Structures</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Gender Roles</span></label></li>
+              </ul>
+            </li>
+
+            <!-- Education -->
+            <li class="tree-item">
+              <div class="toggle-container">
+                <span class="toggle">▼</span>
+                <label class="checkbox-label">
+                  <input type="checkbox" class="subcategory-checkbox">
+                  <span class="subcategory-name">Education</span>
+                </label>
+              </div>
+              <ul class="nested">
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Learning Systems</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Universities</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Literary Traditions</span></label></li>
+              </ul>
+            </li>
+
+            <!-- Population -->
+            <li class="tree-item">
+              <div class="toggle-container">
+                <span class="toggle">▼</span>
+                <label class="checkbox-label">
+                  <input type="checkbox" class="subcategory-checkbox">
+                  <span class="subcategory-name">Population</span>
+                </label>
+              </div>
+              <ul class="nested">
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Migration</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Demographics</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Urbanization</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Settlement Patterns</span></label></li>
+              </ul>
+            </li>
+
+            <!-- Person Roles -->
+            <li class="tree-item">
+              <div class="toggle-container">
+                <span class="toggle">▼</span>
+                <label class="checkbox-label">
+                  <input type="checkbox" class="subcategory-checkbox">
+                  <span class="subcategory-name">People</span>
+                </label>
+              </div>
+              <ul class="nested">
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Educator</span></label>
+                </li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Social Reformer</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Community Leader</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Explorer</span></label></li>
+                <li><label class="checkbox-label"><input type="checkbox"><span class="tag-name">Pioneer</span></label>
+                </li>
+              </ul>
+            </li>
+          </ul>
+        </li>
+      </ul>
+    </div>
+
+    <!-- LEFT RESIZER -->
+    <div class="resizer" id="leftResizer"></div>
+
+    <!-- TIMELINE CONTAINER (Center) -->
+    <div class="timeline-container">
+      <div class="timeline-header">Timeline (4500 BCE – 2050 CE)</div>
+      <table class="timeline-table" id="timelineTable">
+        <colgroup>
+          <col class="year-col" />
+          <col class="region-col" />
+          <col class="region-col" />
+          <col class="region-col" />
+          <col class="region-col" />
+        </colgroup>
+        <thead>
+          <tr>
+            <th>Year</th>
+            <th>Europe</th>
+            <th>Africa Middle East</th>
+            <th>Asia Pacific</th>
+            <th>Americas</th>
+          </tr>
+        </thead>
+        <tbody id="timeline-body"></tbody>
+      </table>
+    </div>
+
+    <!-- RIGHT RESIZER -->
+    <div class="resizer" id="rightResizer"></div>
+
+    <!-- RIGHT SIDEBAR (Minimap) -->
+    <div class="minimap-sidebar" id="minimap">
+      <div class="minimap-content">
+        <div class="mini-grid-wrapper" id="mini-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      // ---------------------------
+      // Left Sidebar Toggle
+      // ---------------------------
+      const sidebarToggle = document.getElementById('sidebarToggle');
+      const sidebar = document.getElementById('sidebar');
+      sidebarToggle.addEventListener('click', function () {
+        sidebar.classList.toggle('collapsed');
+      });
+
+      // ---------------------------
+      // Left Resizer: Adjust Sidebar Width
+      // ---------------------------
+      const leftResizer = document.getElementById('leftResizer');
+      const appContainer = document.querySelector('.app-container');
+      let isResizingLeft = false;
+      leftResizer.addEventListener('mousedown', function () {
+        isResizingLeft = true;
+        document.body.style.cursor = 'col-resize';
+      });
+      document.addEventListener('mousemove', function (e) {
+        if (!isResizingLeft) return;
+        let newWidth = e.clientX - appContainer.getBoundingClientRect().left;
+        newWidth = Math.max(newWidth, 60);
+        sidebar.style.width = newWidth + 'px';
+      });
+      document.addEventListener('mouseup', function () {
+        if (isResizingLeft) {
+          isResizingLeft = false;
+          document.body.style.cursor = 'default';
+        }
+      });
+
+      // ---------------------------
+      // Right Resizer: Adjust Minimap Width
+      // (If no longer needed resizable, you can remove this section)
+      // ---------------------------
+      const rightResizer = document.getElementById('rightResizer');
+      let isResizingRight = false;
+      rightResizer.addEventListener('mousedown', function () {
+        isResizingRight = true;
+        document.body.style.cursor = 'col-resize';
+      });
+      document.addEventListener('mousemove', function (e) {
+        if (!isResizingRight) return;
+        let containerRight = appContainer.getBoundingClientRect().right;
+        let newWidth = containerRight - e.clientX;
+        newWidth = Math.max(newWidth, 60);
+        minimap.style.width = newWidth + 'px';
+      });
+      document.addEventListener('mouseup', function () {
+        if (isResizingRight) {
+          isResizingRight = false;
+          document.body.style.cursor = 'default';
+        }
+      });
+
+      // ---------------------------
+      // Toggle arrows for subcategories in left sidebar
+      // ---------------------------
+      const toggles = document.querySelectorAll('.toggle');
+      toggles.forEach(toggle => {
+        toggle.addEventListener('click', function () {
+          const nested = this.parentElement.nextElementSibling;
+          if (nested && nested.classList.contains('nested')) {
+            nested.style.display = nested.style.display === 'none' ? 'block' : 'none';
+            this.textContent = (nested.style.display === 'none') ? '▶' : '▼';
+          }
+        });
+      });
+
+      // ---------------------------
+      // Generate Timeline Rows
+      // ---------------------------
+      function generateTimelineRows() {
+        const timelineBody = document.getElementById('timeline-body');
+        for (let year = -4500; year <= 2050; year += 10) {
+          const row = document.createElement('tr');
+          const yearCell = document.createElement('td');
+          let label;
+          if (year < 0) {
+            label = `${Math.abs(year)} BCE`;
+          } else if (year === 0) {
+            label = '0';
+          } else {
+            label = `${year} CE`;
+          }
+          yearCell.textContent = label;
+          row.appendChild(yearCell);
+
+          // Create four region cells (empty for now)
+          for (let i = 0; i < 4; i++) {
+            const regionCell = document.createElement('td');
+            regionCell.classList.add('region-col');
+            regionCell.textContent = ''; // Placeholder
+            row.appendChild(regionCell);
+          }
+          timelineBody.appendChild(row);
+        }
+      }
+      generateTimelineRows();
+
+      // ---------------------------
+      // Generate Mini Grid (Clone and scale timeline)
+      // ---------------------------
+      function generateMiniGrid() {
+        const timelineTable = document.getElementById('timelineTable');
+        const miniGridWrapper = document.getElementById('mini-grid');
+        const clone = timelineTable.cloneNode(true);
+
+        // Remove any colgroup so columns aren't forced to a fixed width
+        const colgroups = clone.querySelectorAll('colgroup');
+        colgroups.forEach(cg => cg.remove());
+
+        // Remove the original table's ID to avoid duplicates
+        clone.removeAttribute('id');
+
+        // Append the clone to the wrapper
+        miniGridWrapper.appendChild(clone);
+      }
+      generateMiniGrid();
+    });
+  </script>
+</body>
+
+</html>
